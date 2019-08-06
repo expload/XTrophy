@@ -5,7 +5,7 @@
     <PackageVersion>$(XTROPHY_VERSION)</PackageVersion>
     <TargetFramework>netstandard2.0</TargetFramework>
     <AssemblyName>$(PackageId)</AssemblyName>
-    <WattsLimit>500000</WattsLimit>
+    <WattsLimit>2000000</WattsLimit>
     <PravdaApi>https://publicnode.expload.com/api/public</PravdaApi>
   </PropertyGroup>
   <ItemGroup>

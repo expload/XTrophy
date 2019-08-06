@@ -2,6 +2,7 @@ namespace Expload {
 
     using Pravda;
     using System;
+    using Standards;
 
     [Program]
     public class XTrophy {
@@ -9,6 +10,9 @@ namespace Expload {
 
         private Mapping<Bytes, Int64> Balance =
             new Mapping<Bytes, Int64>();
+
+        private Mapping<Bytes, WithdrawalData> FrozenBalance =
+            new Mapping<Bytes, WithdrawalData>();
 
         private Mapping<Bytes, sbyte> WhiteList =
             new Mapping<Bytes, sbyte>();
@@ -92,6 +96,77 @@ namespace Expload {
             } else Error.Throw("XTrophyError: Operation denied");
         }
 
+
+        //// Withdrawal methods
+
+        // Freeze XTrophy.
+        public void WithdrawalRequest(Int64 amount, String hashCardNumber)
+        {
+            Require(amount > 0, "Amount must be positive");
+
+            Bytes sender = Info.Sender();
+            WithdrawalData withdrawalData = FrozenBalance.GetOrDefault(sender, new WithdrawalData());
+            Require(withdrawalData.amount == 0, "Withdrawal is already there");
+
+            Int64 balance = Balance.GetOrDefault(sender, 0);
+            Require(balance >= amount, "Not enough XTrophy for Withdrawal");
+
+            Balance[sender] = balance - amount;
+            FrozenBalance[sender] = new WithdrawalData(amount, hashCardNumber);
+            Log.Event("WithdrawalRequest", new EventData(sender, amount));
+        }
+
+        // Burn frozen XTrophy.
+        public void WithdrawalComplete(Bytes address)
+        {
+            assertIsOwner();
+
+            nonEmptyFrozenBalance(address);
+
+            Int64 frozenBalance = FrozenBalance[address].amount;
+            FrozenBalance[address] = new WithdrawalData();
+            Log.Event("WithdrawalCompleted", new EventData(address, frozenBalance));
+        }
+
+        // Defrosting XTrophy.
+        public void WithdrawalCancel(Bytes address)
+        {
+            assertIsOwner();
+
+            nonEmptyFrozenBalance(address);
+
+            Int64 balance = Balance.GetOrDefault(address, 0);
+            Int64 frozenBalance = FrozenBalance[address].amount;
+            FrozenBalance[address] = new WithdrawalData();
+            Balance[address] = balance + frozenBalance;
+            Log.Event("WithdrawalCanceled", new EventData(address, frozenBalance));
+        }
+
+        // Get withdrawal data.
+        public WithdrawalData GetWithdrawalData(Bytes address)
+        {
+            assertIsOwner();
+
+            nonEmptyFrozenBalance(address);
+
+            WithdrawalData withdrawalData = FrozenBalance[address];
+
+            return withdrawalData;
+        }
+
+        // Get My withdrawal data.
+        public WithdrawalData MyWithdrawalData()
+        {
+            Bytes sender = Info.Sender();
+            
+            nonEmptyFrozenBalance(sender);
+
+            WithdrawalData withdrawalData = FrozenBalance[sender];
+
+            return withdrawalData;
+        }
+
+
         //// Private methods
 
         // Check address is white listed/
@@ -106,6 +181,12 @@ namespace Expload {
             {
                 Error.Throw("XTrophyError: Only owner of the program can do that.");
             }
+        }
+
+        private void nonEmptyFrozenBalance(Bytes address)
+        {
+            WithdrawalData withdrawalData = FrozenBalance.GetOrDefault(address, new WithdrawalData());
+            Require(withdrawalData.amount > 0, "No frozen funds");
         }
 
         // Check if XTrophy program was called from another program
@@ -131,5 +212,23 @@ namespace Expload {
         }
         public Int64 amount;
         public Bytes recipient;
+    }
+}
+
+namespace Expload.Standards
+{
+    using System;
+
+    public class WithdrawalData
+    {
+        public WithdrawalData(Int64 amount, String hashCardNumber)
+        {
+            this.amount = amount;
+            this.hashCardNumber = hashCardNumber;
+        }
+        public WithdrawalData() { }
+
+        public Int64 amount { get; } = 0;
+        public String hashCardNumber = "";
     }
 }
