@@ -100,20 +100,21 @@ namespace Expload {
         //// Withdrawal methods
 
         // Freeze XTrophy.
-        public void WithdrawalRequest(Int64 amount, String hashCardNumber)
+        public void WithdrawalRequest(Int64 amount, String cardNumberHash)
         {
             Require(amount > 0, "Amount must be positive");
 
             Bytes sender = Info.Sender();
-            WithdrawalData withdrawalData = FrozenBalance.GetOrDefault(sender, new WithdrawalData());
-            Require(withdrawalData.amount == 0, "Withdrawal is already there");
+            Require(!FrozenBalance.ContainsKey(sender), "Withdrawal is already there");
 
             Int64 balance = Balance.GetOrDefault(sender, 0);
             Require(balance >= amount, "Not enough XTrophy for Withdrawal");
 
             Balance[sender] = balance - amount;
-            FrozenBalance[sender] = new WithdrawalData(amount, hashCardNumber);
+            FrozenBalance[sender] = new WithdrawalData(amount, cardNumberHash);
+
             Log.Event("WithdrawalRequest", new EventData(sender, amount));
+            Log.Event("Burn", new EventData(sender, amount));
         }
 
         // Burn frozen XTrophy.
@@ -124,7 +125,8 @@ namespace Expload {
             nonEmptyFrozenBalance(address);
 
             Int64 frozenBalance = FrozenBalance[address].amount;
-            FrozenBalance[address] = new WithdrawalData();
+            FrozenBalance.Remove(address);
+
             Log.Event("WithdrawalCompleted", new EventData(address, frozenBalance));
         }
 
@@ -137,31 +139,19 @@ namespace Expload {
 
             Int64 balance = Balance.GetOrDefault(address, 0);
             Int64 frozenBalance = FrozenBalance[address].amount;
-            FrozenBalance[address] = new WithdrawalData();
             Balance[address] = balance + frozenBalance;
+            FrozenBalance.Remove(address);
+
             Log.Event("WithdrawalCanceled", new EventData(address, frozenBalance));
+            Log.Event("Give", new EventData(address, frozenBalance));
         }
 
         // Get withdrawal data.
         public WithdrawalData GetWithdrawalData(Bytes address)
         {
-            assertIsOwner();
-
             nonEmptyFrozenBalance(address);
 
             WithdrawalData withdrawalData = FrozenBalance[address];
-
-            return withdrawalData;
-        }
-
-        // Get My withdrawal data.
-        public WithdrawalData MyWithdrawalData()
-        {
-            Bytes sender = Info.Sender();
-            
-            nonEmptyFrozenBalance(sender);
-
-            WithdrawalData withdrawalData = FrozenBalance[sender];
 
             return withdrawalData;
         }
@@ -185,8 +175,7 @@ namespace Expload {
 
         private void nonEmptyFrozenBalance(Bytes address)
         {
-            WithdrawalData withdrawalData = FrozenBalance.GetOrDefault(address, new WithdrawalData());
-            Require(withdrawalData.amount > 0, "No frozen funds");
+            Require(FrozenBalance.ContainsKey(address), "No frozen funds");
         }
 
         // Check if XTrophy program was called from another program
@@ -221,14 +210,13 @@ namespace Expload.Standards
 
     public class WithdrawalData
     {
-        public WithdrawalData(Int64 amount, String hashCardNumber)
+        public WithdrawalData(Int64 amount, String cardNumberHash)
         {
             this.amount = amount;
-            this.hashCardNumber = hashCardNumber;
+            this.cardNumberHash = cardNumberHash;
         }
-        public WithdrawalData() { }
 
-        public Int64 amount { get; } = 0;
-        public String hashCardNumber = "";
+        public Int64 amount;
+        public String cardNumberHash;
     }
 }
