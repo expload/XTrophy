@@ -17,15 +17,16 @@ namespace Expload {
         private Mapping<Bytes, sbyte> WhiteList =
             new Mapping<Bytes, sbyte>();
 
-        // Gives amount of XTrophy to recipient.
-        public void Give(Bytes recipient, Int64 amount) {
-            assertIsOwner();
-            Require(amount > 0, "Amount must be positive");
+        // Accrue amount of XTrophy to recipient.
+        public void Accrue(Bytes recipient, Int64 amount) {
+            increaseBalance(recipient, amount);
+            Log.Event("Accrue", new EventData(recipient, amount));
+        }
 
-            Int64 lastBalance = Balance.GetOrDefault(recipient, 0);
-            Int64 newBalance = lastBalance + amount;
-            Balance[recipient] = newBalance;
-            Log.Event("Give", new EventData(recipient, amount));
+        // Refund frozen amount of XTrophy to recipient.
+        public void Refund(Bytes recipient, Int64 amount) {
+            increaseBalance(recipient, amount);
+            Log.Event("Refund", new EventData(recipient, amount));
         }
 
         // Remove amount of XTrophy from balance of address.
@@ -81,7 +82,7 @@ namespace Expload {
         // Send XTrophys from recipient to sender.
         // Sender should be present in the white list.
         // Can only be called from program present in the white list or by such program.
-        public void Refund(Bytes sender, Bytes recipient, Int64 amount) {
+        public void Give(Bytes sender, Bytes recipient, Int64 amount) {
             if (WhiteListCheck(sender) && (Info.Sender() == sender || IsCalledFrom(sender))) {
                 Require(amount > 0, "Amount must be positive");
                 Int64 senderBalance = Balance.GetOrDefault(sender, 0);
@@ -89,11 +90,20 @@ namespace Expload {
                 if (senderBalance >= amount) {
                     Balance[sender] = senderBalance - amount;
                     Balance[recipient] = recipientBalance + amount;
-                    Log.Event("Refund", new RefundEventData(sender, recipient, amount));
+                    Log.Event("Give", new GiveEventData(sender, recipient, amount));
                 } else {
-                    Error.Throw("XTrophyError: Not enough funds for Refund operation");
+                    Error.Throw("XTrophyError: Not enough funds for Give operation");
                 }
             } else Error.Throw("XTrophyError: Operation denied");
+        }
+
+        private void increaseBalance(Bytes recipient, Int64 amount) {
+           assertIsOwner();
+           Require(amount > 0, "Amount must be positive");
+
+           Int64 lastBalance = Balance.GetOrDefault(recipient, 0);
+           Int64 newBalance = lastBalance + amount;
+           Balance[recipient] = newBalance;
         }
 
 
@@ -127,7 +137,7 @@ namespace Expload {
             Int64 frozenBalance = FrozenBalance[address].amount;
             FrozenBalance.Remove(address);
 
-            Log.Event("WithdrawalCompleted", new EventData(address, frozenBalance));
+            Log.Event("WithdrawalComplete", new EventData(address, frozenBalance));
         }
 
         // Defrosting XTrophy.
@@ -142,8 +152,8 @@ namespace Expload {
             Balance[address] = balance + frozenBalance;
             FrozenBalance.Remove(address);
 
-            Log.Event("WithdrawalCanceled", new EventData(address, frozenBalance));
-            Log.Event("Give", new EventData(address, frozenBalance));
+            Log.Event("WithdrawalCancel", new EventData(address, frozenBalance));
+            Log.Event("Refund", new EventData(address, frozenBalance));
         }
 
         // Get withdrawal data.
@@ -203,8 +213,8 @@ namespace Expload {
         public Bytes recipient;
     }
 
-    class RefundEventData {
-        public RefundEventData(Bytes sender, Bytes recipient, Int64 amount) {
+    class SpendEventData {
+        public SpendEventData(Bytes sender, Bytes recipient, Int64 amount) {
             this.sender = sender;
             this.recipient = recipient;
             this.amount = amount;
@@ -214,8 +224,8 @@ namespace Expload {
         public Int64 amount;
     }
 
-    class SpendEventData {
-        public SpendEventData(Bytes sender, Bytes recipient, Int64 amount) {
+    class GiveEventData {
+        public GiveEventData(Bytes sender, Bytes recipient, Int64 amount) {
             this.sender = sender;
             this.recipient = recipient;
             this.amount = amount;
