@@ -71,7 +71,7 @@ namespace Expload {
                 if (senderBalance >= amount) {
                     Balance[sender] = senderBalance - amount;
                     Balance[recipient] = recipientBalance + amount;
-                    Log.Event("Spend", new EventData(recipient, amount));
+                    Log.Event("Spend", new SpendEventData(sender, recipient, amount));
                 } else {
                     Error.Throw("XTrophyError: Not enough funds for Spend operation");
                 }
@@ -89,7 +89,7 @@ namespace Expload {
                 if (senderBalance >= amount) {
                     Balance[sender] = senderBalance - amount;
                     Balance[recipient] = recipientBalance + amount;
-                    Log.Event("Refund", new EventData(recipient, amount));
+                    Log.Event("Refund", new RefundEventData(sender, recipient, amount));
                 } else {
                     Error.Throw("XTrophyError: Not enough funds for Refund operation");
                 }
@@ -201,6 +201,28 @@ namespace Expload {
         }
         public Int64 amount;
         public Bytes recipient;
+    }
+
+    class RefundEventData {
+        public RefundEventData(Bytes sender, Bytes recipient, Int64 amount) {
+            this.sender = sender;
+            this.recipient = recipient;
+            this.amount = amount;
+        }
+        public Bytes sender;
+        public Bytes recipient;
+        public Int64 amount;
+    }
+
+    class SpendEventData {
+        public SpendEventData(Bytes sender, Bytes recipient, Int64 amount) {
+            this.sender = sender;
+            this.recipient = recipient;
+            this.amount = amount;
+        }
+        public Bytes sender;
+        public Bytes recipient;
+        public Int64 amount;
     }
 }
 
